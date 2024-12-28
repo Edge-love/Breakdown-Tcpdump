@@ -87,3 +87,73 @@ addrtoname.c 主要负责将网络地址（如IP地址、MAC地址）转换为�
 #include "extract.h"
 #include "oui.h"
 
+
+#define HASHNAMESIZE 4096		//定义哈希表的大小
+
+struct hnamemem {		//用于存储地址和名称映射的结构体
+	uint32_t addr;			//IP 地址、端口号或其他类型的地址；uint32_t无符号整型，超过最大值会回绕到0，int溢出会出现负数或者无定义行为
+	const char *name;		//存储与地址相关联的名称，通常是与地址对应的主机名、服务名等；const，表示一个不可修改的量
+	struct hnamemem *nxt;		//构成链式哈希表
+};
+
+static struct hnamemem hnametable[HASHNAMESIZE];		//存储“地址到主机名”的映射（可以是 IP 地址到主机名，或其他类型的地址到名称）；静态储存，在整个程序执行期间持续存在
+static struct hnamemem tporttable[HASHNAMESIZE];		//存储传输层端口号（如 TCP 或 UDP 端口号）到名称的映射。可能用于将端口号转换为服务名称（例如，端口 80 对应 HTTP）
+static struct hnamemem uporttable[HASHNAMESIZE];		//存储用户定义的端口号到名称的映射。通常用于存储一些特定应用程序或协议的端口号
+static struct hnamemem eprototable[HASHNAMESIZE];		//存储协议类型到名称的映射，例如将协议编号转换为协议名称（例如，将协议 ID 1 转换为 ICMP，6 转换为 TCP）
+static struct hnamemem dnaddrtable[HASHNAMESIZE];		//存储 DNS 地址到名称的映射，可能用于进行 DNS 查询和反向查找
+static struct hnamemem ipxsaptable[HASHNAMESIZE];		// 存储 IPX 地址到名称的映射。如果代码涉及到 IPX 协议，可能用于将 IPX 地址转换为名称
+//主要作用，地址到名称的映射；
+
+#ifdef _WIN32
+/*
+ * fake gethostbyaddr for Win2k/XP
+ * gethostbyaddr() returns incorrect value when AF_INET6 is passed
+ * to 3rd argument.
+ *
+ * h_name in struct hostent is only valid.
+ */
+static struct hostent *
+win32_gethostbyaddr(const char *addr, int len, int type)
+{
+	static struct hostent host;
+	static char hostbuf[NI_MAXHOST];
+	char hname[NI_MAXHOST];
+
+	host.h_name = hostbuf;
+	switch (type) {
+	case AF_INET:
+		return gethostbyaddr(addr, len, type);
+		break;
+#ifdef AF_INET6
+	case AF_INET6: {
+		struct sockaddr_in6 addr6;
+		memset(&addr6, 0, sizeof(addr6));
+		addr6.sin6_family = AF_INET6;
+		memcpy(&addr6.sin6_addr, addr, len);
+		if (getnameinfo((struct sockaddr *)&addr6, sizeof(addr6),
+		    hname, sizeof(hname), NULL, 0, 0)) {
+			return NULL;
+		} else {
+			strlcpy(host.h_name, hname, NI_MAXHOST);
+			return &host;
+		}
+		break;
+	}
+#endif /* AF_INET6 */
+	default:
+		return NULL;
+	}
+}
+#define gethostbyaddr win32_gethostbyaddr
+#endif /* _WIN32 */
+// 这段代码是为了解决在 Windows 2000/XP 系统上调用 gethostbyaddr() 函数时，遇到 AF_INET6（IPv6）地址族时返回错误值的问题
+// gethostbyaddr() 根据IP地址获取主机名的函数
+
+struct h6namemem {
+	nd_ipv6 addr;
+	char *name;
+	struct h6namemem *nxt;
+};
+
+static struct h6namemem h6nametable[HASHNAMESIZE];
+
