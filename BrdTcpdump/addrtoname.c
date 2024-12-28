@@ -69,17 +69,17 @@ addrtoname.c 主要负责将网络地址（如IP地址、MAC地址）转换为�
 //以上一段主要是为了处理ether_ntohost()函数的跨平台兼容性，该函数主要是用于将以太网地址（MAC地址）转换为主机名
 
 
-#include <pcap.h>
-#include <pcap-namedb.h>
-#ifndef HAVE_GETSERVENT
-#include <getservent.h>
+#include <pcap.h>		//libpcap库的头文件，提供网络接口上的数据包捕获、过滤、保存等，常用于wireshark等网络分析工具
+#include <pcap-namedb.h>		//存储、查询网络接口名称
+#ifndef HAVE_GETSERVENT			
+ #include <getservent.h>		//用于查找服务名称和其对应的端口号，例如"http"对应的端口是80,"ftp"对应的端口是21
 #endif
-#include <signal.h>
+#include <signal.h>		//信号处理函数
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
-#include "netdissect.h"
+#include "netdissect.h"			//自定义函数？？可能与网络抓包或数据包解析相关
 #include "addrtoname.h"
 #include "addrtostr.h"
 #include "ethertype.h"
